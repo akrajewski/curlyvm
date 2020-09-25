@@ -7,7 +7,7 @@ use anyhow::{Result, Context, anyhow};
 enum Const {
     ClassIndex(u16),
 
-    StringLiteral(Rc<String>),
+    StringLiteral(Rc<str>),
     StringIndex(u16),
 
     NameType(u16, u16),
@@ -33,7 +33,8 @@ impl ConstPool {
             let c = match tag {
                 0x01 => {
                     let size = r.u2() as i32;
-                    Const::StringLiteral(Rc::new(r.string(size)))
+                    let rc: Rc<str> = r.string(size).into();
+                    Const::StringLiteral(rc)
                 },
                 0x07 => Const::ClassIndex(r.u2()),
                 0x08 => Const::StringIndex(r.u2()),
@@ -51,7 +52,7 @@ impl ConstPool {
         ConstPool {table}
     }
 
-    fn resolve_str(&self, idx: usize) -> Result<Rc<String>> {
+    fn resolve_str(&self, idx: usize) -> Result<Rc<str>> {
         let c = self.table.get(idx - 1);
 
         match c {
@@ -62,7 +63,7 @@ impl ConstPool {
                     _ => Err(anyhow!("not supported"))
                 }
             },
-            None => Err(anyhow!("unknown index {}!", idx))//Ok(Rc::new(String::from("resolving an unknown index!")))
+            None => Err(anyhow!("unknown index {}!", idx))
         }
     }
 }
@@ -72,27 +73,27 @@ pub struct Class {
     version_major: u16,
     version_minor: u16,
     const_pool: ConstPool,
-    name: Rc<String>,
-    super_class: Rc<String>,
+    name: Rc<str>,
+    super_class: Rc<str>,
     flags: u16,
-    interfaces: Vec<Rc<String>>,
+    interfaces: Vec<Rc<str>>,
     fields: Vec<Field>,
-    methods: Vec<Field>,
-    attributes: Vec<Attribute>
+    pub methods: Vec<Field>,
+    pub attributes: Vec<Attribute>
 }
 
 #[derive(Debug)]
-struct Field {
+pub struct Field {
     flags: u16,
-    name: Rc<String>,
-    descriptor: Rc<String>,
-    attributes: Vec<Attribute>
+    pub name: Rc<str>,
+    descriptor: Rc<str>,
+    pub attributes: Vec<Attribute>
 }
 
 #[derive(Debug)]
-struct Attribute {
-    name: Rc<String>,
-    data: Vec<u8>
+pub struct Attribute {
+    pub name: Rc<str>,
+    pub data: Vec<u8>
 }
 
 struct ClassFileReader {
@@ -171,7 +172,7 @@ pub fn load(path: &str) -> Result<Class> {
     Ok(class)
 }
 
-fn interfaces<'a>(r: &mut ClassFileReader, const_pool: &ConstPool) -> Result<Vec<Rc<String>>> {
+fn interfaces<'a>(r: &mut ClassFileReader, const_pool: &ConstPool) -> Result<Vec<Rc<str>>> {
     let count = r.u2();
     let mut v = Vec::new();
     for _ in 0..count {
