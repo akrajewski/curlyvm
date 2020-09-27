@@ -4,7 +4,14 @@ use std::fs::File;
 use anyhow::{Result, Context, anyhow};
 
 #[derive(Debug)]
-enum Const {
+pub struct StaticMethod {
+    pub class_name: Rc<str>,
+    pub method_name: Rc<str>,
+    pub method_desc: Rc<str>,
+}
+
+#[derive(Debug)]
+pub enum Const {
     ClassIndex(u16),
 
     StringLiteral(Rc<str>),
@@ -17,7 +24,7 @@ enum Const {
 }
 
 #[derive(Debug)]
-struct ConstPool {
+pub struct ConstPool {
     table: Vec<Const>
 }
 
@@ -66,14 +73,56 @@ impl ConstPool {
             None => Err(anyhow!("unknown index {}!", idx))
         }
     }
+
+    pub fn resolve_static_method(&self, idx: usize) -> Result<StaticMethod> {
+        match self.table.get(idx - 1) {
+
+            Some(Const::FieldMethod(class_idx, name_type_index)) => {
+                let class_name = match self.table.get(*class_idx as usize - 1) {
+                    Some(Const::ClassIndex(idx)) => {
+                        match self.table.get(*idx as usize - 1) {
+                            Some(Const::StringLiteral(s)) => s,
+                            Some(_) | None => return Err(anyhow!("ClassIndex does not point to StringLiteral"))
+                        }
+                    }
+                    Some(_) | None => return Err(anyhow!("class index does not point to ClassIndex"))
+                };
+
+                let (method_name, method_desc) = match self.table.get(*name_type_index as usize - 1) {
+                    Some(Const::NameType(name_idx, type_idx)) => {
+
+                        let name = match self.table.get(*name_idx as usize - 1) {
+                            Some(Const::StringLiteral(s)) => s,
+                            Some(_) | None => return Err(anyhow!("name_idx does not point to StringLiteral"))
+                        };
+
+                        let desc = match self.table.get(*type_idx as usize - 1) {
+                            Some(Const::StringLiteral(s)) => s,
+                            Some(_) | None => return Err(anyhow!("type_idx does not point to StringLiteral"))
+                        };
+
+                        (name, desc)
+                    },
+                    Some(_) | None => return Err(anyhow!("name_type_idx does not point to NameType"))
+                };
+
+                Ok(StaticMethod {
+                    class_name: class_name.clone(),
+                    method_name: method_name.clone(),
+                    method_desc: method_desc.clone(),
+                })
+            },
+            _ => Err(anyhow!("index does not point to FieldMethod"))
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct Class {
     version_major: u16,
     version_minor: u16,
-    const_pool: ConstPool,
-    name: Rc<str>,
+    pub const_pool: ConstPool,
+    pub name: Rc<str>,
     super_class: Rc<str>,
     flags: u16,
     interfaces: Vec<Rc<str>>,

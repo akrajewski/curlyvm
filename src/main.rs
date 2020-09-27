@@ -3,13 +3,9 @@ use curlyvm;
 
 
 fn main() -> Result<()> {
-    let c = curlyvm::class::load("java/Add.class")?;
-
-    println!("loaded class: {:?}", c);
-
-    let v = curlyvm::jvm::run_method(&c, "add", &["2", "3"])?;
-
-    println!("Got result: {}", v);
+    let mut jvm = curlyvm::jvm::JVM::new()?;
+    let v = jvm.run_method("Add", "subtract", &[2, 3])?;
+    println!("Got result: {:?}", v);
 
     Ok(())
 }
