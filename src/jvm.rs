@@ -1,4 +1,4 @@
-use crate::class::Class;
+use crate::class::{Class};
 use std::ops::Deref;
 use std::collections::HashMap;
 
@@ -16,158 +16,39 @@ pub enum JTypeValue {
     RetAddr(u32),
 }
 
-pub struct JVM<'a> {
-    thread: JThread<'a>,
-    heap: Heap,
+pub struct JVM {
+    thread: JThread,
+    _heap: Heap,
     method_area: Rc<MethodArea>
 }
 
-impl <'a> JVM<'a> {
+impl JVM {
     pub fn new() -> Result<Self> {
         let mut method_area = MethodArea::new();
         let class = crate::class::load("java/Add.class")?;
         println!("class: {:?}", class);
-        method_area.classes.insert(class.name.clone(), class);
+        method_area.classes.insert(class.name.clone(), Rc::new(class));
 
         let method_area = Rc::new(method_area);
         let thread = JThread::new(method_area.clone());
 
-        Ok(Self { method_area, thread, heap: Heap })
+        Ok(Self { method_area, thread, _heap: Heap })
     }
 
-    pub fn run(&'a mut self, class_name: &str, method_name: &str, args: &[i32]) -> Result<i32> {
-        self.thread.execute_method(class_name, method_name, args);
-        Ok(0)
+    pub fn run(&mut self, class_name: &str, method_name: &str, args: &[i32]) -> Result<i32> {
+        let result = self.thread.execute_method(class_name, method_name, args)?;
+        match result {
+            JTypeValue::Int(v) => Ok(v),
+            _ => panic!("unsupported result type")
+        }
     }
-
-    // pub fn load(&mut self, path: &str) -> Result<()> {
-    //     let class = crate::class::load(path)?;
-    //     println!("class: {:?}", class);
-    //     self.method_area.classes.insert(class.name.clone(), class);
-    //     Ok(())
-    // }
-
-    // pub fn run_method(&self, class_name: &str, method_name: &str, args: &[i32]) -> Result<JTypeValue>  {
-    //     println!("running {}.{} with {:?}", class_name, method_name, args);
-    //
-    //     let class = match self.method_area.classes.get(class_name) {
-    //         Some(c) => c,
-    //         None => return Err(anyhow!("no such class error"))
-    //     };
-    //
-    //     let method = match class.methods.iter().find(|&m|  m.name.deref() == method_name) {
-    //         Some(m) => m,
-    //         None => return Err(anyhow!("no such method"))
-    //     };
-    //
-    //     let code = match method.attributes.iter().find(|&a| a.name.deref() == "Code") {
-    //         Some(c) => c,
-    //         None => return Err(anyhow!("'code' attribute not found!"))
-    //     };
-    //
-    //     let _max_locals = u16::from_be_bytes([code.data[2],code.data[3]]) as usize;
-    //
-    //     let mut locals = Vec::<i32>::new();
-    //     for a in args.iter() {
-    //         locals.push(*a);
-    //     }
-    //
-    //     let mut frame = Frame {
-    //         class,
-    //         code: &code.data[8..],
-    //         ip: 0,
-    //         locals,
-    //         operand_stack: Vec::new()
-    //     };
-    //
-    //     let result = self.execute_frame(&mut frame)?;
-    //
-    //     Ok(JTypeValue::Int(result))
-    // }
-    //
-    // fn execute_frame(&self, f: &mut Frame) -> Result<i32> {
-    //     loop {
-    //         let op = f.code[f.ip as usize];
-    //
-    //         println!("OP: {}, stack: {:?}", op, f.operand_stack);
-    //
-    //         match op {
-    //             26 => { // iload_0
-    //                 f.operand_stack.push(f.locals[0]);
-    //                 f.ip += 1;
-    //             },
-    //             27 => { // iload_1
-    //                 f.operand_stack.push(f.locals[1]);
-    //                 f.ip += 1;
-    //             },
-    //             116 => { // ineg
-    //                 let v = f.pop_stack()?;
-    //                 f.operand_stack.push(-v);
-    //                 f.ip += 1;
-    //             }
-    //             96 => { // iadd
-    //                 let a = f.pop_stack()?;
-    //                 let b = f.pop_stack()?;
-    //                 f.operand_stack.push(a + b);
-    //                 f.ip += 1;
-    //             },
-    //             172 => { // ireturn
-    //                 return f.pop_stack()
-    //             },
-    //             184 => { // invokestatic
-    //                 let index = u16::from_be_bytes([f.code[(f.ip+1) as usize], f.code[(f.ip+2) as usize]]);
-    //
-    //                 let static_method = f.class.const_pool.resolve_static_method(index as usize)?;
-    //
-    //                 println!("prepping to invoke {:?}", static_method);
-    //
-    //                 let mut nargs = 0;
-    //
-    //                 let desc = static_method.method_desc.deref();
-    //                 for c in desc[1..].chars() {
-    //                     if c == ')' {
-    //                         break;
-    //                     }
-    //
-    //                     nargs += 1;
-    //                 }
-    //
-    //                 println!("nargs = {}", nargs);
-    //
-    //                 let mut locals = Vec::<i32>::new();
-    //                 while nargs > 0 {
-    //                     locals.push(f.pop_stack()?);
-    //                     nargs -= 1;
-    //                 }
-    //
-    //                 let r = self.run_method(
-    //                     static_method.class_name.deref(),
-    //                     static_method.method_name.deref(),
-    //                     &locals
-    //                 )?;
-    //
-    //                 println!("result from method: {:?}", r);
-    //
-    //                 match r {
-    //                     JTypeValue::Int(i) => f.operand_stack.push(i),
-    //                     _ => return Err(anyhow!("unsupported JTypeValue"))
-    //                 };
-    //
-    //                 f.ip += 3;
-    //             }
-    //             _ => {
-    //                 println!("unknown opcode {}", op);
-    //             }
-    //         }
-    //     }
-    // }
-
 }
 
 struct Heap;
 
+#[derive(Debug)]
 struct MethodArea {
-    classes: HashMap<Rc<str>, Class>
+    classes: HashMap<Rc<str>, Rc<Class>>
 }
 
 impl MethodArea {
@@ -176,48 +57,18 @@ impl MethodArea {
     }
 }
 
-struct JThread<'a> {
-    stack: Vec<Frame<'a>>,
+struct JThread {
+    stack: Vec<Frame>,
     method_area: Rc<MethodArea>,
 }
 
-impl <'a> JThread<'a> {
+impl JThread {
     fn new(method_area: Rc<MethodArea>) -> Self {
         Self {stack: Vec::new(), method_area}
     }
 
-    fn execute_method(&'a mut self, class_name: &str, method_name: &str, args: &[i32]) -> Result<JTypeValue> {
+    fn execute_method(&mut self, class_name: &str, method_name: &str, args: &[i32]) -> Result<JTypeValue> {
         println!("running {}.{} with {:?}", class_name, method_name, args);
-
-        // let class = match self.method_area.classes.get(class_name) {
-        //     Some(c) => c,
-        //     None => return Err(anyhow!("no such class error"))
-        // };
-        //
-        // let method = match class.methods.iter().find(|&m|  m.name.deref() == method_name) {
-        //     Some(m) => m,
-        //     None => return Err(anyhow!("no such method"))
-        // };
-        //
-        // let code = match method.attributes.iter().find(|&a| a.name.deref() == "Code") {
-        //     Some(c) => c,
-        //     None => return Err(anyhow!("'code' attribute not found!"))
-        // };
-        //
-        // let _max_locals = u16::from_be_bytes([code.data[2],code.data[3]]) as usize;
-        //
-        // let mut locals = Vec::<i32>::new();
-        // for a in args.iter() {
-        //     locals.push(*a);
-        // }
-        //
-        // let mut frame = Frame {
-        //     class,
-        //     code: &code.data[8..],
-        //     ip: 0,
-        //     locals,
-        //     operand_stack: Vec::new()
-        // };
 
         let f = self.build_frame(class_name, method_name, args)?;
         self.stack.push(f);
@@ -226,7 +77,7 @@ impl <'a> JThread<'a> {
         Ok(JTypeValue::Int(result))
     }
 
-    fn build_frame(&'a self, class_name: &str, method_name: &str, args: &[i32]) -> Result<Frame<'a>> {
+    fn build_frame(&self, class_name: &str, method_name: &str, args: &[i32]) -> Result<Frame> {
         let class = match self.method_area.classes.get(class_name) {
             Some(c) => c,
             None => return Err(anyhow!("no such class error"))
@@ -249,111 +100,145 @@ impl <'a> JThread<'a> {
             locals.push(*a);
         }
 
-        Ok(Frame {
-            class,
-            code: &code.data[8..],
-            ip: 0,
-            locals,
-            operand_stack: Vec::new()
-        })
+        let frame = Frame::new(class.clone(),  code.data[8..].to_vec(), locals);
+        Ok(frame)
     }
 
-    fn execute_frame(&'a mut self) -> Result<i32> {
+    fn top_frame(&self) -> &Frame {
+        match self.stack.last() {
+            Some(f) => f,
+            None => panic!("tried to get top frame, but there is nothing!")
+        }
+    }
+
+    fn top_frame_mut(&mut self) -> &mut Frame {
+        match self.stack.last_mut() {
+            Some(f) => f,
+            None => panic!("tried to get top frame, but there is nothing")
+        }
+    }
+
+    fn execute_frame(&mut self) -> Result<i32> {
         loop {
+            let frame = self.top_frame();
 
-            let mut f =  match self.stack.last_mut() {
-                Some(f) => f,
-                None => return Err(anyhow!("did not find a frame on the stack!"))
-            };
-
-            let op = f.code[f.ip as usize];
-
-            println!("OP: {}, stack: {:?}", op, f.operand_stack);
+            let op = frame.code[frame.ip as usize];
+            println!("OP: {}, stack: {:?}", op, frame.operand_stack);
 
             match op {
-                26 => { // iload_0
-                    f.operand_stack.push(f.locals[0]);
-                    f.ip += 1;
+                26 => {
+                    let var = frame.locals[0];
+                    let frame_mut = self.top_frame_mut();
+                    frame_mut.push_stack(var);
+                    frame_mut.increment_ip(1)
                 },
                 27 => { // iload_1
-                    f.operand_stack.push(f.locals[1]);
-                    f.ip += 1;
+                    let var = frame.locals[1];
+                    let frame_mut = self.top_frame_mut();
+                    frame_mut.push_stack(var);
+                    frame_mut.increment_ip(1);
                 },
                 116 => { // ineg
-                    let v = f.pop_stack()?;
-                    f.operand_stack.push(-v);
-                    f.ip += 1;
+                    let frame_mut = self.top_frame_mut();
+                    let v = frame_mut.pop_stack()?;
+                    frame_mut.push_stack(-v);
+                    frame_mut.increment_ip(1);
                 }
                 96 => { // iadd
-                    let a = f.pop_stack()?;
-                    let b = f.pop_stack()?;
-                    f.operand_stack.push(a + b);
-                    f.ip += 1;
-                },
-                172 => { // ireturn
-                    return f.pop_stack()
+                    let frame_mut = self.top_frame_mut();
+
+                    let a = frame_mut.pop_stack()?;
+                    let b = frame_mut.pop_stack()?;
+                    frame_mut.push_stack(a + b);
+                    frame_mut.increment_ip(1);
                 },
                 184 => { // invokestatic
-                    let index = u16::from_be_bytes([f.code[(f.ip+1) as usize], f.code[(f.ip+2) as usize]]);
+                    let index = u16::from_be_bytes([frame.code[(frame.ip+1) as usize], frame.code[(frame.ip+2) as usize]]);
 
-                    let static_method = f.class.const_pool.resolve_static_method(index as usize)?;
+                    let static_method = frame.class.const_pool.resolve_static_method(index as usize)?;
 
-                    println!("prepping to invoke {:?}", static_method);
+                    let nargs = Self::get_nargs(&static_method.method_desc);
+                    let locals = Self::locals_from_operand_stack(&frame, nargs);
 
-                    let mut nargs = 0;
+                    let invoked_method_frame = self.build_frame(&static_method.class_name, &static_method.method_name, &locals)?;
 
-                    let desc = static_method.method_desc.deref();
-                    for c in desc[1..].chars() {
-                        if c == ')' {
-                            break;
-                        }
+                    self.stack.push(invoked_method_frame);
+                    let result = self.execute_frame()?;
+                    self.stack.pop();
 
-                        nargs += 1;
-                    }
-
-                    println!("nargs = {}", nargs);
-
-
-                    let mut locals = Vec::<i32>::new();
-                    while nargs > 0 {
-                        locals.push(f.pop_stack()?);
-                        nargs -= 1;
-                    }
-
-                    f.ip += 3;
-
-                    {
-                        let fr = self.build_frame(static_method.class_name.deref(), static_method.method_name.deref(), &locals)?;
-                        println!("would run frame: {:?}", fr);
-                        self.stack.push(fr);
-                    }
-
-
-
-                    // f.ip += 3;
+                    let frame_mut = self.top_frame_mut();
+                    frame_mut.push_stack(result);
+                    frame_mut.increment_ip(3);
                 }
+                172 => { // ireturn
+                    let frame_mut = self.top_frame_mut();
+                    return frame_mut.pop_stack();
+                },
                 _ => {
                     println!("unknown opcode {}", op);
+                    panic!("unknown odpcode!")
                 }
             }
         }
     }
+
+    fn get_nargs(desc: &str) -> u32 {
+        let mut nargs = 0;
+        for c in desc[1..].chars() {
+            if c == ')' {
+                break;
+            }
+
+            nargs += 1;
+        }
+        nargs
+    }
+
+    fn locals_from_operand_stack(frame: &Frame, nargs: u32) -> Vec<i32> {
+        let mut locals = Vec::<i32>::new();
+        let len = frame.operand_stack.len();
+        let mut i = 1;
+        while i <= nargs {
+            locals.push(frame.operand_stack[len - (i as usize)]);
+            i += 1;
+        }
+        locals
+    }
 }
 
 #[derive(Debug)]
-struct Frame<'a> {
-    class: &'a Class,
+struct Frame {
+    class: Rc<Class>,
     ip: u32,
-    code: &'a [u8],
+    code: Vec<u8>,
     locals: Vec<i32>,
     operand_stack: Vec<i32>
 }
 
-impl <'a> Frame<'a> {
-    pub fn pop_stack(&'a mut self) -> Result<i32> {
+impl Frame {
+
+    pub fn new(class: Rc<Class>, code: Vec<u8>, locals: Vec<i32>) -> Self {
+        Self {
+            class,
+            code,
+            ip: 0,
+            locals,
+            operand_stack: Vec::new()
+        }
+    }
+
+    pub fn pop_stack(&mut self) -> Result<i32> {
         match self.operand_stack.pop() {
             Some(v) => Ok(v),
             None => Err(anyhow!("tried popping stack but nothing found!"))
         }
+    }
+
+    pub fn push_stack(&mut self, v: i32) {
+        self.operand_stack.push(v);
+    }
+
+    pub fn increment_ip(&mut self, inc: u32) {
+        self.ip += inc;
     }
 }

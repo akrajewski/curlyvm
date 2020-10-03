@@ -158,7 +158,7 @@ impl ClassFileReader {
 
     fn u1(&mut self) -> u8 {
         let mut buf: [u8 ; 1] = [0; 1];
-        &self.class_file.read_exact(&mut buf).expect("must read!");
+        self.class_file.read_exact(&mut buf).expect("must read!");
         buf[0]
     }
 
@@ -209,8 +209,8 @@ pub fn load(path: &str) -> Result<Class> {
         version_major,
         version_minor,
         flags: r.u2(),
-        name: const_pool.resolve_str(r.u2() as usize).with_context(|| format!("error while resolving class name"))?,
-        super_class: const_pool.resolve_str(r.u2() as usize).with_context(|| format!("error while resolving super class name"))?,
+        name: const_pool.resolve_str(r.u2() as usize).with_context(|| "error while resolving class name")?,
+        super_class: const_pool.resolve_str(r.u2() as usize).with_context(|| "error while resolving super class name")?,
         interfaces: interfaces(&mut r, &const_pool)?,
         fields: fields(&mut r, &const_pool)?,
         methods: fields(&mut r, &const_pool)?,
@@ -221,7 +221,7 @@ pub fn load(path: &str) -> Result<Class> {
     Ok(class)
 }
 
-fn interfaces<'a>(r: &mut ClassFileReader, const_pool: &ConstPool) -> Result<Vec<Rc<str>>> {
+fn interfaces(r: &mut ClassFileReader, const_pool: &ConstPool) -> Result<Vec<Rc<str>>> {
     let count = r.u2();
     let mut v = Vec::new();
     for _ in 0..count {
