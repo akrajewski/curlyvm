@@ -20,13 +20,34 @@ pub enum Const {
     NameType(u16, u16),
     FieldMethod(u16, u16),
 
+    Integer(i32),
+    Long(i64),
+    Double(f64),
+    Float(f32),
+
+    // Used for padding values of LONG and DOUBLE constants
+    // see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.4.5
+    Unusable,
+
     Unknown,
 }
 
 #[derive(Debug)]
 pub struct ConstPool {
+    size: u16,
     table: Vec<Const>
 }
+
+const CONSTANT_UTF8: u8 = 1;
+const CONSTANT_INTEGER: u8 = 3;
+const CONSTANT_FLOAT: u8 = 4;
+const CONSTANT_LONG: u8 = 5;
+const CONSTANT_DOUBLE: u8 = 6;
+const CONSTANT_CLASS: u8 = 7;
+const CONSTANT_STRING: u8 = 8;
+const CONSTANT_FIELDREF: u8 = 9;
+const CONSTANT_METHODREF: u8 = 10;
+const CONSTANT_NAMEANDTYPE: u8 = 12;
 
 impl ConstPool {
     fn load(r: &mut ClassFileReader) -> ConstPool {
@@ -34,30 +55,78 @@ impl ConstPool {
 
         let mut table = Vec::new();
 
-        for _ in 1..const_pool_size {
+        // https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.1
+        // The value of the constant_pool_count item is equal to the number of entries in the constant_pool table plus one.
+        // A constant_pool index is considered valid if it is greater than zero and less than constant_pool_count
+        let mut i = 1;
+        while i < const_pool_size {
             let tag = r.u1();
 
             let c = match tag {
-                0x01 => {
+                CONSTANT_UTF8 => {
                     let size = r.u2() as i32;
                     let rc: Rc<str> = r.string(size).into();
                     Const::StringLiteral(rc)
                 },
-                0x07 => Const::ClassIndex(r.u2()),
-                0x08 => Const::StringIndex(r.u2()),
-                0x09 | 0x0a => Const::FieldMethod(r.u2(), r.u2()),
-                0x0c => Const::NameType(r.u2(), r.u2()),
+                CONSTANT_CLASS => Const::ClassIndex(r.u2()),
+                CONSTANT_STRING => Const::StringIndex(r.u2()),
+                CONSTANT_FIELDREF | CONSTANT_METHODREF => Const::FieldMethod(r.u2(), r.u2()),
+                CONSTANT_NAMEANDTYPE => Const::NameType(r.u2(), r.u2()),
+                CONSTANT_DOUBLE => {
+                    let bytes = r.u8();
+
+                    // Skip ahead, double uses two spots!
+                    i += 1;
+
+                    Const::Double(f64::from_bits(bytes))
+                },
+                CONSTANT_FLOAT => {
+                    let bytes = r.u4();
+                    Const::Float(f32::from_bits(bytes))
+                },
+                CONSTANT_LONG => {
+                    let bytes = r.u8();
+
+                    // Skip ahead, double uses two spots!
+                    i += 1;
+
+                    Const::Long(bytes as i64)
+                },
+                CONSTANT_INTEGER => {
+                    let bytes = r.u4();
+                    Const::Integer(bytes as i32)
+                }
                 _ => {
-                    println!("unknown tag: {:x?}", tag);
+                    println!("unknown tag: {:?}", tag);
                     Const::Unknown
                 }
             };
 
-            table.push(c)
+            println!("resolved {:?}", c);
+            i += 1;
+
+            let takes_two_entries = match c {
+                Const::Double(_) | Const::Long(_) => true,
+                _ => false
+            };
+
+            table.push(c);
+            if takes_two_entries {
+                // We inject empty value to allow easy indexing logic later
+                table.push(Const::Unusable)
+            }
         }
 
-        ConstPool {table}
+        ConstPool {size: const_pool_size, table}
     }
+
+    pub fn resolve(&self, idx: usize) -> Result<&Const> {
+        match self.table.get(idx - 1) {
+            Some(c) => Ok(c),
+            None => Err(anyhow!("unknown index {}", idx)),
+        }
+    }
+
 
     fn resolve_str(&self, idx: usize) -> Result<Rc<str>> {
         let c = self.table.get(idx - 1);
