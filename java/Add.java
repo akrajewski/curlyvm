@@ -1,5 +1,13 @@
 public class Add {
 
+  private int a;
+  private int b;
+
+  public Add(int a, int b) {
+    this.a = a;
+    this.b = b;
+  }
+
   public static int subtract(int a, int b) {
     return add(a, -b);
   }
@@ -34,5 +42,30 @@ public class Add {
   public static int addMany(int a, int b, int c, int d, int f, int e) {
     return a + b + c+ d+ e+ f;
   }
+
+  public static int doStuff() {
+    int i = 0;
+    while (i < 10) {
+      i++;
+    }
+    return i;
+  }
+
+  public int result() {
+    return this.a + this.b;
+  }
+
+  public static int main() {
+    Add a = new Add(5, 6);
+    return a.result();
+  }
+
+
+
+
+
+
+
+
 }
 

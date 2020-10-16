@@ -145,7 +145,6 @@ impl ConstPool {
 
     pub fn resolve_static_method(&self, idx: usize) -> Result<StaticMethod> {
         match self.table.get(idx - 1) {
-
             Some(Const::FieldMethod(class_idx, name_type_index)) => {
                 let class_name = match self.table.get(*class_idx as usize - 1) {
                     Some(Const::ClassIndex(idx)) => {
