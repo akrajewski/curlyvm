@@ -1,5 +1,7 @@
 use std::ops::{Add, Neg};
 
+pub const NULL_REF: JTypeValue = JTypeValue::Ref(0);
+
 #[derive(Debug, Copy, Clone)]
 pub enum JTypeValue {
     Int(i32),
@@ -63,3 +65,32 @@ impl Neg for JTypeValue {
         }
     }
 }
+
+impl PartialEq for JTypeValue {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Int(a) => match other {
+                Self::Int(b) => a == b,
+                _ => panic!("unsupported operation, comparing int with non-int"),
+            },
+            Self::Long(a) => match other {
+                Self::Long(b) => a == b,
+                _ => panic!("unsupported operation: comparing long with non-long")
+            },
+            Self::Float(a) => match other {
+                Self::Float(b) => a == b,
+                _ => panic!("unsupported operation: comparing float with non-float"),
+            },
+            Self::Double(a) => match other {
+                Self::Double(b) => a == b,
+                _ => panic!("unsuppported operation: comparing double to non-double"),
+            },
+            Self::Ref(a) => match other {
+                Self::Ref(b) => a == b,
+                _ => panic!("unsuppported operation: comparing ref to non-ref"),
+            },
+            _ => panic!("unsupported operation")
+        }
+    }
+}
+

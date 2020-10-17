@@ -10,7 +10,8 @@ pub struct Heap {
 
 impl Heap {
     pub fn new() -> Self {
-        Heap {ref_counter: 0, objects: HashMap::new()}
+        // Start reference counting from 1, 0 is considered NULL
+        Heap {ref_counter: 1, objects: HashMap::new()}
     }
 
     pub fn allocate(&mut self, obj: Object) -> usize {

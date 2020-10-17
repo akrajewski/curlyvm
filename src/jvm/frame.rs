@@ -39,7 +39,7 @@ impl Frame {
         self.operand_stack.push(v );
     }
 
-    pub fn increment_ip(&mut self, inc: usize) {
+    pub fn inc_ip(&mut self, inc: usize) {
         self.ip += inc;
     }
 }
