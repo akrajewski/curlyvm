@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::os::macos::raw::stat;
 use std::borrow::Borrow;
 pub use crate::jvm::types::JTypeValue;
-use crate::jvm::objects::{Heap, Object};
+use crate::jvm::objects::{Heap, Object, Array};
 use crate::jvm::frame::Frame;
 use crate::jvm::types::NULL_REF;
 
@@ -40,11 +40,13 @@ const ICONST_3: u8 = 6;
 const ICONST_4: u8 = 7;
 const ICONST_5: u8 = 8;
 
+
 const ILOAD: u8 = 21;
 const ILOAD_0: u8 = 26;
 const ILOAD_1: u8 = 27;
 const ILOAD_2: u8 = 28;
 const ILOAD_3: u8 = 29;
+const IALOAD: u8 = 46;
 const INEG: u8 = 116;
 const IADD: u8 = 96;
 const IRETURN: u8 = 172;
@@ -53,6 +55,7 @@ const ISTORE_0: u8 = 59;
 const ISTORE_1: u8 = 60;
 const ISTORE_2: u8 = 61;
 const ISTORE_3: u8 = 62;
+const IASTORE: u8 = 79;
 
 const LCONST_0: u8 = 9;
 const LCONST_1: u8 = 10;
@@ -120,6 +123,7 @@ const IF_ACMPNE: u8 = 166;
 const IFNULL: u8 = 198;
 const IFNONNULL: u8 = 199;
 
+const NEWARRAY: u8 = 188;
 
 const GETFIELD: u8 = 180;
 const PUTFIELD: u8 = 181;
@@ -371,6 +375,35 @@ impl JThread {
                     frame.locals[3] = v;
                     frame.inc_ip(1)
                 },
+                IASTORE => {
+                    let value = frame.pop_stack()?;
+                    let index = frame.pop_int();
+                    let arr_ref = frame.pop_ref();
+
+                    {
+                        let mut heap = self.heap.borrow_mut();
+                        let arr = heap.get_arr_mut(arr_ref);
+                        arr.set(index as usize, value);
+                    }
+
+                    let frame_mut = self.top_frame_mut();
+                    frame_mut.inc_ip(1);
+                },
+
+                IALOAD => {
+                    let index = frame.pop_int();
+                    let array_ref = frame.pop_ref();
+
+                    let val = {
+                        let heap = RefCell::borrow(&self.heap);
+                        let arr = heap.get_arr(array_ref);
+                        arr.get_int(index as usize)
+                    };
+
+                    let frame_mut = self.top_frame_mut();
+                    frame_mut.push_stack(JTypeValue::Int(val));
+                    frame_mut.inc_ip(1);
+                }
 
                 LDC => { // TODO implement other LDC e.g. LDC_2W
                     let index = frame.code[frame.ip + 1];
@@ -441,7 +474,7 @@ impl JThread {
 
                     // build an object for the class
                     let obj = Object::new(frame.class.clone());
-                    let obj_ref = self.heap.borrow_mut().allocate(obj);
+                    let obj_ref = self.heap.borrow_mut().allocate_obj(obj);
 
                     let frame_mut = self.top_frame_mut();
                     frame_mut.push_stack(JTypeValue::Ref(obj_ref));
@@ -636,6 +669,21 @@ impl JThread {
                         frame.inc_ip(3);
                     }
                 },
+
+                NEWARRAY => {
+                    let count = frame.pop_int();
+
+                    // TODO if count < 0, throw NegativeArraySizeException
+
+                    let array = Array::new(count as usize);
+                    let arr_ref = self.heap.borrow_mut().allocate_arr(array);
+
+                    let frame_mut = self.top_frame_mut();
+                    frame_mut.push_stack(JTypeValue::Ref(arr_ref));
+                    frame_mut.inc_ip(2);
+                },
+
+
 
 
                 _ => {

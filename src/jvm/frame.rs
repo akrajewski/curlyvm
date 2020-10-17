@@ -26,7 +26,27 @@ impl Frame {
     pub fn pop_stack(&mut self) -> Result<JTypeValue> {
         match self.operand_stack.pop() {
             Some(v) => Ok(v),
-            None => Err(anyhow!("tried popping stack but nothing found!"))
+            None => Err(anyhow!("tried popping stack but nothing found"))
+        }
+    }
+
+    pub fn pop_int(&mut self) -> i32 {
+        match self.operand_stack.pop() {
+            Some(v) => match v {
+                JTypeValue::Int(i) => i,
+                _ => panic!("tried popping int but something else found")
+            },
+            None => panic!("tied popping int but nothing found")
+        }
+    }
+
+    pub fn pop_ref(&mut self) -> usize {
+        match self.operand_stack.pop() {
+            Some(v) => match v {
+                JTypeValue::Ref(r) => r,
+                _ => panic!("tried popping ref but something else found")
+            },
+            None => panic!("tried popping ref but nothing found")
         }
     }
 

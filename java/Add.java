@@ -1,11 +1,11 @@
 public class Add {
 
-  private int a;
-  private int b;
+  private int[] args;
 
   public Add(int a, int b) {
-    this.a = a;
-    this.b = b;
+    this.args = new int[2];
+    args[0] = a;
+    args[1] = b;
   }
 //
 //  public static int subtract(int a, int b) {
@@ -52,7 +52,7 @@ public class Add {
 //  }
 
   public int result() {
-    return this.a + this.b;
+    return this.args[0] + this.args[1];
   }
 
   public static int main() {
